@@ -7,6 +7,12 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
 
+class AdminCreateUserRequest(BaseModel):
+    username: str
+    email: EmailStr
+    password: str
+    role: Literal["Pasien", "Dokter", "SuperAdmin"]
+
 class LoginRequest(BaseModel):
     username: str
     password: str
@@ -15,7 +21,7 @@ class UserResponse(BaseModel):
     id: int
     username: str
     email: EmailStr
-    role: Literal["Pasien", "SuperAdmin"]
+    role: Literal["Pasien", "Dokter", "SuperAdmin"]
 
     class Config:
-        from_attributes = True  # pydantic v2 equivalent to orm_mode
+        from_attributes = True 
