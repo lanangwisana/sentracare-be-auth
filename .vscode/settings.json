@@ -1,3 +1,26 @@
 {
-  "cSpell.words": ["autoflush", "creds", "Dokter", "DOKTER", "dotenv", "fastapi", "passlib", "SENTRACARE", "sessionmaker", "sqlalchemy", "uvicorn"]
+  "cSpell.words": [
+    "autentikasi",
+    "autoflush",
+    "baru",
+    "berdasarkan",
+    "cocok",
+    "creds",
+    "ditentukan",
+    "Dokter",
+    "DOKTER",
+    "dotenv",
+    "fastapi",
+    "konfirmasi",
+    "manajemen",
+    "Mendaftarkan",
+    "Mengembalikan",
+    "oleh",
+    "passlib",
+    "SENTRACARE",
+    "seperti",
+    "sessionmaker",
+    "sqlalchemy",
+    "uvicorn"
+  ]
 }
