@@ -20,10 +20,11 @@ def hash_password(password: str) -> str:
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
-def create_access_token(sub: str, role: str) -> str:
+def create_access_token(sub: str, email: str, role: str) -> str:
     now = datetime.utcnow()
     to_encode = {
         "sub": sub,
+        "email": email,
         "role": role,
         "iat": int(now.timestamp()),
         "exp": int((now + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)).timestamp()),
