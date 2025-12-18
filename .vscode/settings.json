@@ -17,10 +17,12 @@
     "Mengembalikan",
     "oleh",
     "passlib",
+    "pytz",
     "SENTRACARE",
     "seperti",
     "sessionmaker",
     "sqlalchemy",
+    "SUPERADMIN",
     "uvicorn"
   ]
 }
