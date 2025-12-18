@@ -1,10 +1,12 @@
 # SENTRACARE-BE-AUTH/main.py
+from datetime import datetime
+import pytz
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from database import Base, engine, SessionLocal
-from models import User, RoleEnum
-from schemas import RegisterRequest, AdminCreateUserRequest, LoginRequest, UserResponse
+from models import StatusEnum, User, RoleEnum
+from schemas import AdminUpdateUserRequest, RegisterRequest, AdminCreateUserRequest, LoginRequest, UserResponse
 from utils import hash_password, verify_password, create_access_token
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -30,10 +32,22 @@ app = FastAPI(title="Sentracare Auth Service", description="API untuk autentikas
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://0.0.0.0:3000",
+        "http://host.docker.internal:3000"],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=["Authorization", 
+        "Content-Type",
+        "Accept",
+        "Origin",
+        "X-Requested-With",
+        "Access-Control-Allow-Origin",
+        "Access-Control-Allow-Headers",
+        "Access-Control-Request-Method",
+        "Access-Control-Request-Headers"
+        ],
 )
 
 Base.metadata.create_all(bind=engine)
@@ -78,7 +92,7 @@ def register(data: RegisterRequest, db: Session = Depends(get_db)):
     "/auth/admin/create-user", 
     response_model=UserResponse, tags=["admin"],
     summary="Admin membuat user baru",
-    description="Endpoint ini hanya dapat diakses oleh admin untuk membuat user baru dengan role yang ditentukan seperti Pasien/Dokter/Admin."
+    description="Endpoint ini hanya dapat diakses oleh admin untuk membuat user baru dengan role yang ditentukan seperti Pasien/Dokter/SuperAdmin."
     )
 def admin_create_user(
     data: AdminCreateUserRequest,
@@ -94,15 +108,46 @@ def admin_create_user(
     role_map = {
         "Pasien": RoleEnum.PASIEN,
         "Dokter": RoleEnum.DOKTER,
-        "SuperAdmin": RoleEnum.ADMIN,
+        "SuperAdmin": RoleEnum.SUPERADMIN,
     }
     user = User(
+        full_name=data.full_name,
         username=data.username,
         email=data.email,
+        phone_number= data.phone_number,
         password_hash=hash_password(data.password),
         role=role_map[data.role],
+        status=StatusEnum.ACTIVE
     )
     db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+@app.get(
+    "/auth/admin/users", 
+    response_model=list[UserResponse], 
+    tags=["admin"],
+    description="Daftar semua user (SuperAdmin dan Dokter). Hanya dapat diakses oleh SuperAdmin."
+    )
+def list_users(skip: int = 0, limit: int = 20,db: Session = Depends(get_db), _claims: dict = Depends(require_role(["SuperAdmin"]))):
+    return db.query(User).filter(User.role.in_([RoleEnum.SUPERADMIN, RoleEnum.DOKTER])).offset(skip).limit(limit).all()
+
+@app.put(
+    "/auth/admin/update-user/{user_id}", 
+    response_model=UserResponse, 
+    tags=["admin"],
+    description="Update data user (full_name, username, email, status). Hanya dapat diakses oleh SuperAdmin."
+    )
+def update_user(user_id: int, data: AdminUpdateUserRequest, db: Session = Depends(get_db), _claims: dict = Depends(require_role(["SuperAdmin"]))):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user.full_name = data.full_name
+    user.username = data.username
+    user.email = data.email
+    user.status = data.status
     db.commit()
     db.refresh(user)
     return user
@@ -117,10 +162,16 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(
         (User.username == data.identifier) | (User.email == data.identifier)
     ).first()
-    if not user or not verify_password(data.password, user.password_hash):
-        raise HTTPException(status_code=400, detail="Invalid credentials")
-
+    print("Login attempt:", data.identifier)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not verify_password(data.password, user.password_hash):
+        raise HTTPException(status_code=400, detail="Invalid password")
+    wib = pytz.timezone("Asia/Jakarta")
+    user.last_login = datetime.now(wib)
+    db.commit()
     access_token = create_access_token(sub=user.username, role=user.role.value, email=user.email)
+    print("User found:", user.username if user else "None")
     return {"access_token": access_token, "token_type": "bearer"}
 
 @app.get(
