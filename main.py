@@ -12,9 +12,16 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
 from utils import SECRET_KEY, ALGORITHM, AUDIENCE, ISSUER
+from graphql_schema import graphql_app
+
+app = FastAPI(
+    title="Sentracare Auth Service", 
+    description="API untuk autentikasi dan manajemen user di SentraCare", 
+    version="1.0.0")
+# graphql router
+app.include_router(graphql_app, prefix="/graphql")
 
 bearer = HTTPBearer()
-
 def require_role(roles: list[str]):
     def _dep(creds: HTTPAuthorizationCredentials = Depends(bearer)):
         token = creds.credentials
@@ -27,8 +34,6 @@ def require_role(roles: list[str]):
         except JWTError:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
     return _dep
-
-app = FastAPI(title="Sentracare Auth Service", description="API untuk autentikasi dan manajemen user di SentraCare", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
