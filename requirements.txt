@@ -9,3 +9,4 @@ email-validator
 cryptography
 datetime
 pytz
+strawberry-graphql
