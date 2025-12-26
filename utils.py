@@ -6,11 +6,12 @@ from jose import jwt
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-SECRET_KEY = "sentracare-rahasia-sangat-aman-123" 
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 1440
-ISSUER = "sentracare-auth"
-AUDIENCE = "sentracare-services"
+SECRET_KEY = os.getenv("AUTH_SECRET_KEY", "changeme")
+ALGORITHM = os.getenv("AUTH_ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))
+ISSUER = os.getenv("AUTH_ISSUER", "sentracare-auth")
+AUDIENCE = os.getenv("AUTH_AUDIENCE", "sentracare-services")
+
 
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
