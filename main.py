@@ -19,7 +19,10 @@ app = FastAPI(
     description="API untuk autentikasi dan manajemen user di SentraCare", 
     version="1.0.0")
 # graphql router
-app.include_router(graphql_app, prefix="/graphql")
+app.include_router(
+    graphql_app, 
+    prefix="/auth/graphql", 
+    tags=["GraphQL"], )
 
 bearer = HTTPBearer()
 def require_role(roles: list[str]):
@@ -35,25 +38,25 @@ def require_role(roles: list[str]):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
     return _dep
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://0.0.0.0:3000",
-        "http://host.docker.internal:3000"],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allow_headers=["Authorization", 
-        "Content-Type",
-        "Accept",
-        "Origin",
-        "X-Requested-With",
-        "Access-Control-Allow-Origin",
-        "Access-Control-Allow-Headers",
-        "Access-Control-Request-Method",
-        "Access-Control-Request-Headers"
-        ],
-)
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=["http://localhost:3000",
+#         "http://127.0.0.1:3000",
+#         "http://0.0.0.0:3000",
+#         "http://host.docker.internal:3000"],
+#     allow_credentials=True,
+#     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+#     allow_headers=["Authorization", 
+#         "Content-Type",
+#         "Accept",
+#         "Origin",
+#         "X-Requested-With",
+#         "Access-Control-Allow-Origin",
+#         "Access-Control-Allow-Headers",
+#         "Access-Control-Request-Method",
+#         "Access-Control-Request-Headers"
+#         ],
+# )
 
 Base.metadata.create_all(bind=engine)
 
@@ -67,7 +70,7 @@ def get_db():
 @app.post(
     "/auth/register", 
     response_model=UserResponse, 
-    tags=["auth"], 
+    tags=["Auth"], 
     summary="Register user baru", 
     description="Mendaftarkan user baru dengan role default Pasien. Validasi username, email, dan password."
     )
@@ -95,7 +98,8 @@ def register(data: RegisterRequest, db: Session = Depends(get_db)):
 
 @app.post(
     "/auth/admin/create-user", 
-    response_model=UserResponse, tags=["admin"],
+    response_model=UserResponse, 
+    tags=["Admin"],
     summary="Admin membuat user baru",
     description="Endpoint ini hanya dapat diakses oleh admin untuk membuat user baru dengan role yang ditentukan seperti Pasien/Dokter/SuperAdmin."
     )
@@ -129,20 +133,84 @@ def admin_create_user(
     db.refresh(user)
     return user
 
+# === Endpoint Update ===
+@app.put(
+    "/auth/admin/update-user/{user_id}", 
+    response_model=UserResponse, 
+    tags=["Update User Request pada user management"],
+    summary="Update status booking dan assign dokter",
+    description="Update data user lengkap. Hanya dapat diakses oleh SuperAdmin."
+)
+def update_user(
+    user_id: int, 
+    data: AdminUpdateUserRequest, 
+    db: Session = Depends(get_db), 
+    _claims: dict = Depends(require_role(["SuperAdmin"]))
+):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Mapping string role dari frontend ke Enum backend
+    role_map = {
+        "Pasien": RoleEnum.PASIEN,
+        "Dokter": RoleEnum.DOKTER,
+        "SuperAdmin": RoleEnum.SUPERADMIN,
+    }
+
+    # Mapping string status dari frontend ke Enum backend
+    status_map = {
+        "Active": StatusEnum.ACTIVE,
+        "Inactive": StatusEnum.INACTIVE,
+    }
+    
+    user.full_name = data.full_name
+    user.username = data.username
+    user.email = data.email
+    user.phone_number = data.phone_number
+    user.role = role_map[data.role]
+    user.status = status_map[data.status]
+    
+    db.commit()
+    db.refresh(user)
+    return user
+
+# Endpoint Delete
+@app.delete(
+    "/auth/admin/delete-user/{user_id}", 
+    tags=["Delete User"],
+    summary="Hapus user secara permanen",
+    description="Menghapus user secara permanen. Hanya dapat diakses oleh SuperAdmin."
+)
+def delete_user(
+    user_id: int, 
+    db: Session = Depends(get_db), 
+    _claims: dict = Depends(require_role(["SuperAdmin"]))
+):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    db.delete(user)
+    db.commit()
+    return {"message": f"User {user_id} deleted successfully"}
+
 @app.get(
     "/auth/admin/users", 
     response_model=list[UserResponse], 
-    tags=["admin"],
-    description="Daftar semua user (SuperAdmin dan Dokter). Hanya dapat diakses oleh SuperAdmin."
+    tags=["Admin"],
+    summary="List daftar semua user",
+    description="List daftar semua user (SuperAdmin dan Dokter). Hanya dapat diakses oleh SuperAdmin."
     )
 def list_users(skip: int = 0, limit: int = 20,db: Session = Depends(get_db), _claims: dict = Depends(require_role(["SuperAdmin"]))):
-    return db.query(User).filter(User.role.in_([RoleEnum.SUPERADMIN, RoleEnum.DOKTER])).offset(skip).limit(limit).all()
+    return db.query(User).filter(User.role.in_([RoleEnum.SUPERADMIN, RoleEnum.DOKTER, RoleEnum.PASIEN])).offset(skip).limit(limit).all()
 
 @app.put(
     "/auth/admin/update-user/{user_id}", 
     response_model=UserResponse, 
-    tags=["admin"],
-    description="Update data user (full_name, username, email, status). Hanya dapat diakses oleh SuperAdmin."
+    tags=["Update Profile Data User"],
+    summary="Update Profile data user (full_name, username, email, status)",
+    description="Update Profile data user (full_name, username, email, status). Hanya dapat diakses oleh SuperAdmin."
     )
 def update_user(user_id: int, data: AdminUpdateUserRequest, db: Session = Depends(get_db), _claims: dict = Depends(require_role(["SuperAdmin"]))):
     user = db.query(User).filter(User.id == user_id).first()
@@ -159,7 +227,7 @@ def update_user(user_id: int, data: AdminUpdateUserRequest, db: Session = Depend
 
 @app.post(
     "/auth/login", 
-    tags=["auth"],
+    tags=["Auth"],
     summary="Login user",
     description="Login menggunakan username/email dan password. Mengembalikan JWT access token jika berhasil."
     )
@@ -182,7 +250,7 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
 @app.get(
     "/auth/me", 
     response_model=UserResponse, 
-    tags=["auth"],
+    tags=["Auth"],
     summary="Ambil data user login",
     description="Mengembalikan data user berdasarkan JWT access token yang dikirim di header Authorization."
     )
