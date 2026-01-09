@@ -2,6 +2,7 @@
 from datetime import datetime
 from pydantic import BaseModel, EmailStr
 from typing import Literal
+from typing import Literal, Optional
 
 class RegisterRequest(BaseModel):
     full_name: str
@@ -25,6 +26,8 @@ class AdminUpdateUserRequest(BaseModel):
     full_name: str
     username: str
     email: EmailStr
+    phone_number: str | None = None 
+    role: Literal["Pasien", "Dokter", "SuperAdmin"]
     status: Literal["Active", "Inactive"]
 
 class LoginRequest(BaseModel):
